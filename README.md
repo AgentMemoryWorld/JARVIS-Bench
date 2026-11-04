@@ -1,1 +1,158 @@
 # JARVIS-Bench
+
+A benchmark for evaluating how well LLMs can model and predict an individual
+user's lifestyle preferences, proactive-help needs, and emotional state from
+their daily activity logs and images.
+
+The benchmark covers four tasks across 42 users and 100 survey questions:
+
+| Task                | Variants                  | Inputs                                  | Metric                                            |
+|---------------------|---------------------------|-----------------------------------------|---------------------------------------------------|
+| **Survey**          | C0–C4                     | trajectory ± persona ± survey-insight   | accuracy (4-way MCQ)                              |
+| **Proactive help**  | text, image               | last 5 days + (optional) anchor image   | precision / recall / F1, judge-based reason match |
+| **Emotion**         | text, image               | event context + (optional) image        | polarity acc, mood F1                             |
+| **Domain Transfer** | S1 drop-one, S2 keep-only | C2_full trajectory with one domain ablated | Δ accuracy vs C2_full (necessity) / vs C0_blank (sufficiency) |
+
+## Repository layout
+
+```
+JARVIS-Bench/
+├── README.md                # this file
+├── LICENSE                  # MIT
+├── .gitignore               # excludes user data + caches + secrets
+├── JarvisBench_problem.csv  # 100-question survey (public benchmark items)
+├── eval/                    # evaluation pipeline (see eval/README.md)
+│   ├── README.md
+│   ├── configs/             # conditions.yaml, models.yaml, domain_mapping.yaml
+│   ├── prompts/system.txt
+│   └── src/                 # python package: `python -m eval.src.cli ...`
+├── Data/                    # ground-truth + persona + images   (NOT in git)
+└── synthetic/               # per-user synthetic trajectories   (NOT in git)
+```
+
+The `Data/` and `synthetic/` directories are **not** committed to this
+repository. They contain user-derived data and must be obtained separately
+(see "Obtaining the data" below).
+
+## Obtaining the data
+
+The data is distributed separately from the code. After downloading and
+extracting the data bundle, your project root must end up looking like this:
+
+```
+JARVIS-Bench/
+├── Data/
+│   └── processed/
+│       ├── survey.json            # ground-truth survey answers, keyed by user_slug
+│       ├── persona.json           # structured persona summary, keyed by user_slug
+│       └── image/
+│           └── {user_slug}/
+│               └── Day{N}/        # one folder per day, JPG/PNG photos inside
+│                   ├── img_001.jpg
+│                   └── ...
+└── synthetic/
+    └── {user_slug}/               # one folder per user (42 total)
+        ├── synthetic_trajectory.json   # REQUIRED — per-day event log
+        ├── profile_persona.json        # required for C3 / C4 only
+        └── skeleton.json               # required by aggregator for clue-slice metrics
+```
+
+`{user_slug}` is a stable 4-character ID (e.g., `0cxl`, `z8a2`). Image and
+synthetic folders must use the same slug; the loader cross-references them.
+
+### File-by-file requirements
+
+| Path                                                | Used by                               | Required when                              |
+|-----------------------------------------------------|---------------------------------------|--------------------------------------------|
+| `JarvisBench_problem.csv`                           | survey loader                          | always                                     |
+| `Data/processed/survey.json`                        | survey ground-truth                    | always                                     |
+| `Data/processed/persona.json`                       | survey loader (persona injection)      | always                                     |
+| `Data/processed/image/{slug}/Day{N}/*.jpg`          | proactive-image, emotion-image tasks   | image-variant tasks only                   |
+| `synthetic/{slug}/synthetic_trajectory.json`        | all tasks                              | per-user, always                           |
+| `synthetic/{slug}/profile_persona.json`             | survey conditions C3, C4               | per-user, optional                         |
+| `synthetic/{slug}/skeleton.json`                    | survey aggregator (planted / clue slices) | per-user, optional                      |
+
+Anything else inside `synthetic/{slug}/` (e.g. `chunks/`, `run_logs/`,
+`qa_report.json`, `skeleton_windows/`) is intermediate synthesis output and
+is **not** required to run the evaluation. Do not commit those even after
+obtaining the data bundle.
+
+## Quick start
+
+```bash
+# 1. Install dependencies
+pip install openai pyyaml pandas
+# Optional, only if you use these providers:
+pip install anthropic google-genai google-cloud-aiplatform
+
+# 2. Export API keys for the providers you want to call
+export OPENAI_API_KEY=...
+export OPENROUTER_API_KEY=...      # optional
+export GEMINI_API_KEY=...          # optional
+
+# 3. Place the data bundle as described above, then sanity-check
+python -m eval.src.cli list-users
+python -m eval.src.cli list-config
+
+# 4. Smoke test (single user, single model)
+python -m eval.src.cli run --task survey \
+    --users z8a2 --models gpt-5.4-nano
+
+# 5. Run all task variants for one user
+python -m eval.src.cli run --task survey          --users z8a2 --models gpt-5.4-nano
+python -m eval.src.cli run --task proactive_text  --users z8a2 --models gpt-5.4-nano
+python -m eval.src.cli run --task proactive_image --users z8a2 --models gpt-5.4-nano
+python -m eval.src.cli run --task emotion_text    --users z8a2 --models gpt-5.4-nano
+python -m eval.src.cli run --task emotion_image   --users z8a2 --models gpt-5.4-nano
+
+# 6. Domain Transfer (Task 4) — re-run the survey while ablating one domain.
+#    S1 "drop-one" measures necessity:    Δ accuracy vs C2_full baseline.
+#    S2 "keep-only" measures sufficiency: Δ accuracy vs C0_blank baseline.
+python -m eval.src.cli run --task survey --conditions C2_full \
+    --users z8a2 --models gpt-5.4-nano \
+    --ablations drop_food_dining drop_work_study drop_leisure
+python -m eval.src.cli run --task survey --conditions C0_blank \
+    --users z8a2 --models gpt-5.4-nano \
+    --ablations keep_food_dining keep_work_study keep_leisure
+
+# 7. (Re)aggregate result CSVs from cached runs
+python -m eval.src.cli aggregate --task all
+```
+
+### Domain Transfer details
+
+Domain Transfer reuses the survey runner with an `--ablations` flag that
+filters which event domains appear in the trajectory before it is serialized
+into the prompt. The 7 buckets (defined in `eval/configs/domain_mapping.yaml`)
+are: `daily_routine`, `food_dining`, `work_study`, `leisure`,
+`commuting_travel`, `shopping`, `social_wellbeing`. Long-tail event domains
+not in any bucket are always kept (treated as bucket-agnostic noise).
+
+Two complementary ablation families:
+
+- **S1 — drop-one** (`drop_<bucket>`): start from `C2_full`, remove all
+  events in one bucket, measure the accuracy drop. Large drop ⇒ this bucket
+  is *necessary*.
+- **S2 — keep-only** (`keep_<bucket>`): start from `C0_blank`, add back
+  only events in one bucket, measure the accuracy gain. Large gain ⇒ this
+  bucket is *sufficient* on its own.
+
+Full sweep is 7 buckets × 2 families × 42 users × N models. Runs land in
+`eval/runs/{condition}__{model}__{ablation}/` and are picked up automatically
+by `aggregate --task survey`.
+
+Outputs land in `eval/runs/` (git-ignored) and are organized as
+`{condition}__{model}/parsed/{user}.json` for survey runs and
+`{task}__{user}__{model}/` for proactive / emotion runs. Cross-(user, model)
+summary CSVs are written to `eval/runs/_summary/`.
+
+See `eval/README.md` for the full CLI reference, condition definitions,
+caching behavior, and parallelism controls (`EVAL_PARALLEL` env var).
+
+## Citation
+
+If you use JARVIS-Bench in your research, please cite the accompanying paper.
+
+## License
+
+[MIT](LICENSE).

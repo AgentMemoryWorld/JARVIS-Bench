@@ -1,0 +1,57 @@
+# Domain Transfer task — canonical event_domain → survey domain mapping.
+# Each survey "bucket" lists the event_domain values that map to it.
+# All other event_domains (long-tail) are treated as "other" and ALWAYS kept
+# in the input regardless of ablation.
+# `cross_domain` is *not* an ablation target (no events map to it).
+
+buckets:
+  daily_routine:
+    - wake
+    - bedtime
+    - nap
+
+  food_dining:
+    - food
+
+  work_study:
+    - work
+
+  leisure:
+    - entertainment
+
+  commuting_travel:    # weather carries leaveHomeTime/returnHomeTime
+    - weather
+    - travel
+
+  shopping:
+    - shopping
+
+  social_wellbeing:
+    - physical
+    - exercise
+    - event
+
+# These 7 buckets define BOTH:
+#   - S1 (drop_one):  ablation_id "drop_<bucket>" removes all events whose domain
+#                     is in the bucket; everything else (incl. long-tail) stays.
+#   - S2 (keep_only): ablation_id "keep_<bucket>" removes everything EXCEPT
+#                     events whose domain is in the bucket; long-tail events
+#                     are also kept (they are bucket-agnostic noise).
+
+ablations_drop:
+  - drop_daily_routine
+  - drop_food_dining
+  - drop_work_study
+  - drop_leisure
+  - drop_commuting_travel
+  - drop_shopping
+  - drop_social_wellbeing
+
+ablations_keep:
+  - keep_daily_routine
+  - keep_food_dining
+  - keep_work_study
+  - keep_leisure
+  - keep_commuting_travel
+  - keep_shopping
+  - keep_social_wellbeing

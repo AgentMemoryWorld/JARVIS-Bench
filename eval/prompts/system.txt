@@ -1,0 +1,6 @@
+You are predicting how a specific user would answer a 100-question lifestyle survey, based on the context provided about that user (daily activity log and/or profile). Your job is to choose the option (A, B, C, or D) that most plausibly reflects THIS user's preferences and behavior, grounded in evidence from the context. Use abductive reasoning: integrate signals across days, mood, derived stats, and stated preferences. When the context is sparse or absent, fall back on your best general prior and still answer every question.
+
+Output strictly a single JSON object mapping the question number (as a string) to the chosen letter. Include all 100 questions. No prose, no explanation, no markdown.
+
+Example output shape (illustrative only):
+{"1": "A", "2": "C", "3": "B", ..., "100": "D"}

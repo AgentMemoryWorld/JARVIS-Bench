@@ -1,0 +1,368 @@
+# Model registry. The `model_id` is the actual string sent to the OpenAI API.
+# Update model_id and pricing to match your real targets.
+# API key is read from the OPENAI_API_KEY environment variable.
+
+models:
+  gpt-5.4-nano:
+    model_id: "gpt-5-nano"
+    temperature: 0.0
+    # NOTE: gpt-5 family are reasoning models — completion budget includes
+    # internal reasoning tokens. Need a generous cap or final JSON gets cut off
+    # (and you'll see content="" with missing=100).
+    max_tokens: 16000
+    # USD per 1M tokens (used only for cost estimation in CSVs)
+    cost_per_1m_prompt_usd: 0.15
+    cost_per_1m_completion_usd: 0.60
+
+
+  gpt-5.4-mini:
+    model_id: "gpt-5-mini"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 1.25
+    cost_per_1m_completion_usd: 5.00
+
+  gpt-5.4:
+    model_id: "gpt-5"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 5.00
+    cost_per_1m_completion_usd: 15.00
+
+  # ==================== OpenRouter — Qwen 3.6 (2026-04) ====================
+  qwen3.6-plus:
+    provider: "openrouter"
+    model_id: "qwen/qwen3.6-plus"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 0.325
+    cost_per_1m_completion_usd: 3.25
+
+  qwen3.6-35b-a3b:
+    provider: "openrouter"
+    model_id: "qwen/qwen3.6-35b-a3b"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 0.18
+    cost_per_1m_completion_usd: 0.72
+
+  qwen3.6-27b:
+    provider: "openrouter"
+    model_id: "qwen/qwen3.6-27b"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 0.20
+    cost_per_1m_completion_usd: 0.80
+
+  # ==================== OpenRouter — Qwen 3.5 (2026-02) ====================
+  qwen3.5-122b-a10b:
+    provider: "openrouter"
+    model_id: "qwen/qwen3.5-122b-a10b"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 0.50
+    cost_per_1m_completion_usd: 2.00
+
+  qwen3.5-9b:
+    provider: "openrouter"
+    model_id: "qwen/qwen3.5-9b"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 0.05
+    cost_per_1m_completion_usd: 0.20
+
+  # ==================== OpenRouter — Gemma 4 (2026) ====================
+  gemma-4-31b:
+    provider: "openrouter"
+    model_id: "google/gemma-4-31b-it"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 0.15
+    cost_per_1m_completion_usd: 0.60
+
+  gemma-4-26b-a4b:
+    provider: "openrouter"
+    model_id: "google/gemma-4-26b-a4b-it"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 0.10
+    cost_per_1m_completion_usd: 0.40
+
+  # ==================== OpenRouter — Anthropic Claude (2026) ====================
+  claude-sonnet-4.6:
+    provider: "openrouter"
+    model_id: "anthropic/claude-sonnet-4.6"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 3.00
+    cost_per_1m_completion_usd: 15.00
+
+  claude-haiku-4.5:
+    provider: "openrouter"
+    model_id: "anthropic/claude-haiku-4.5"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 1.00
+    cost_per_1m_completion_usd: 5.00
+
+  # ==================== Vertex AI — Gemini (ADC) ====================
+  # Vertex hits region-specific endpoints with Application Default Credentials.
+  # Set GOOGLE_CLOUD_PROJECT env var or replace `project_id` below with your own.
+  gemini-2.5-flash:
+    provider: "vertex_gemini"
+    project_id: "YOUR_GCP_PROJECT"
+    location: "us-central1"
+    model_id: "gemini-2.5-flash"
+    temperature: 0.0
+    max_tokens: 16000
+    # Disable thinking — otherwise it eats the output token budget and
+    # truncates JSON mid-stream (observed missing=29-30 letters).
+    thinking_budget: 0
+    cost_per_1m_prompt_usd: 0.30
+    cost_per_1m_completion_usd: 2.50
+
+  gemini-2.5-flash-lite:
+    provider: "vertex_gemini"
+    project_id: "YOUR_GCP_PROJECT"
+    location: "us-central1"
+    model_id: "gemini-2.5-flash-lite"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 0.10
+    cost_per_1m_completion_usd: 0.40
+
+  gemini-2.5-pro:
+    provider: "vertex_gemini"
+    project_id: "YOUR_GCP_PROJECT"
+    location: "us-central1"
+    model_id: "gemini-2.5-pro"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 1.25
+    cost_per_1m_completion_usd: 10.00
+
+  gemini-3-flash-preview:
+    provider: "vertex_gemini"
+    project_id: "YOUR_GCP_PROJECT"
+    location: "global"
+    model_id: "gemini-3-flash-preview"
+    temperature: 0.0
+    max_tokens: 16000
+    # Disable thinking — observed missing=100 (full failure) on C1_traj14d
+    # and C4_skyline conditions when thinking is on.
+    thinking_budget: 0
+    cost_per_1m_prompt_usd: 0.40
+    cost_per_1m_completion_usd: 3.00
+
+  gemini-3.1-flash-lite-preview:
+    provider: "vertex_gemini"
+    project_id: "YOUR_GCP_PROJECT"
+    location: "global"
+    model_id: "gemini-3.1-flash-lite-preview"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 0.20
+    cost_per_1m_completion_usd: 0.80
+
+  gemini-3.1-pro-preview:
+    provider: "vertex_gemini"
+    project_id: "YOUR_GCP_PROJECT"
+    location: "global"
+    model_id: "gemini-3.1-pro-preview"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 2.50
+    cost_per_1m_completion_usd: 20.00
+
+  # ==================== Google AI Studio — Gemini (API key, -api suffix) ====================
+  # Reads GEMINI_API_KEY from env. Higher quotas than Vertex's region buckets
+  # but hot models can 503 during peak.
+  # The "-api" suffix keeps these distinct from the Vertex entries above
+  # (different cache keys, different run dirs).
+  gemini-2.5-flash-api:
+    provider: "google_genai_apikey"
+    model_id: "gemini-2.5-flash"
+    temperature: 0.0
+    max_tokens: 16000
+    thinking_budget: 0
+    cost_per_1m_prompt_usd: 0.30
+    cost_per_1m_completion_usd: 2.50
+
+  gemini-2.5-flash-lite-api:
+    provider: "google_genai_apikey"
+    model_id: "gemini-2.5-flash-lite"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 0.10
+    cost_per_1m_completion_usd: 0.40
+
+  gemini-2.5-pro-api:
+    provider: "google_genai_apikey"
+    model_id: "gemini-2.5-pro"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 1.25
+    cost_per_1m_completion_usd: 10.00
+
+  gemini-3-flash-preview-api:
+    provider: "google_genai_apikey"
+    model_id: "gemini-3-flash-preview"
+    temperature: 0.0
+    max_tokens: 16000
+    thinking_budget: 0
+    cost_per_1m_prompt_usd: 0.40
+    cost_per_1m_completion_usd: 3.00
+
+  gemini-3.1-flash-lite-preview-api:
+    provider: "google_genai_apikey"
+    model_id: "gemini-3.1-flash-lite-preview"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 0.20
+    cost_per_1m_completion_usd: 0.80
+
+  gemini-3.1-pro-preview-api:
+    provider: "google_genai_apikey"
+    model_id: "gemini-3.1-pro-preview"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 2.50
+    cost_per_1m_completion_usd: 20.00
+
+  # Bonus: gemini-3-pro-preview is discontinued on Vertex but still works on
+  # AI Studio (snapshot 2026-04-30). Keep for ablation; remove if it disappears.
+  gemini-3-pro-preview-api:
+    provider: "google_genai_apikey"
+    model_id: "gemini-3-pro-preview"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 2.00
+    cost_per_1m_completion_usd: 15.00
+  # ==================== DeepSeek V4 (2026-Q1) ====================
+  deepseek-v4-flash:
+    provider: "openrouter"
+    model_id: "deepseek/deepseek-v4-flash"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 0.14
+    cost_per_1m_completion_usd: 0.28
+
+  deepseek-v4-pro:
+    provider: "openrouter"
+    model_id: "deepseek/deepseek-v4-pro"
+    temperature: 0.0
+    max_tokens: 48000
+    reasoning:
+      max_tokens: 10000
+    cost_per_1m_prompt_usd: 0.435
+    cost_per_1m_completion_usd: 0.87
+
+  # ==================== Moonshot Kimi K2 family ====================
+  kimi-k2.5:
+    provider: "openrouter"
+    model_id: "moonshotai/kimi-k2.5"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 0.44
+    cost_per_1m_completion_usd: 2.00
+
+  kimi-k2.6:
+    provider: "openrouter"
+    model_id: "moonshotai/kimi-k2.6"
+    temperature: 0.0
+    max_tokens: 48000
+    reasoning:
+      max_tokens: 10000
+    cost_per_1m_prompt_usd: 0.74
+    cost_per_1m_completion_usd: 3.49
+
+  # ==================== Z.ai GLM 5 family ====================
+  glm-5:
+    provider: "openrouter"
+    model_id: "z-ai/glm-5"
+    temperature: 0.0
+    max_tokens: 32000
+    reasoning:
+      max_tokens: 10000
+    # Endpoint switch: default route was DeepInfra (fp4 quant,
+    # max_completion=16384) which silently returns ~400-tok empty reasoning
+    # for ~50 of our cases. Pin to Z.AI (model's home provider, fp16,
+    # max_completion=131072, uptime 99.8%) with no fallback.
+    provider_routing:
+      order: ["Z.AI"]
+      allow_fallbacks: false
+    cost_per_1m_prompt_usd: 0.60
+    cost_per_1m_completion_usd: 2.08
+
+  glm-5.1:
+    provider: "openrouter"
+    model_id: "z-ai/glm-5.1"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 1.05
+    cost_per_1m_completion_usd: 3.50
+
+  # ==================== MiniMax ====================
+  minimax-m2.5:
+    provider: "openrouter"
+    model_id: "minimax/minimax-m2.5"
+    temperature: 0.0
+    max_tokens: 48000
+    # OpenRouter rejects effort+max_tokens together; keep only max_tokens.
+    reasoning:
+      max_tokens: 10000
+    # Endpoint switch: pin to Minimax's own infra (max_completion=131k,
+    # uptime 99.2%) to avoid the cheap quantized upstream that returned
+    # ~400-tok empty responses on ~30 of 37 failed cases.
+    provider_routing:
+      order: ["Minimax"]
+      allow_fallbacks: true
+    cost_per_1m_prompt_usd: 0.15
+    cost_per_1m_completion_usd: 1.15
+
+  minimax-m2.7:
+    provider: "openrouter"
+    model_id: "minimax/minimax-m2.7"
+    temperature: 0.0
+    max_tokens: 48000
+    reasoning:
+      max_tokens: 10000
+    cost_per_1m_prompt_usd: 0.30
+    cost_per_1m_completion_usd: 1.20
+
+  # ==================== Xiaomi MiMo ====================
+  mimo-v2.5:
+    provider: "openrouter"
+    model_id: "xiaomi/mimo-v2.5"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 0.40
+    cost_per_1m_completion_usd: 2.00
+
+  mimo-v2.5-pro:
+    provider: "openrouter"
+    model_id: "xiaomi/mimo-v2.5-pro"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 1.00
+    cost_per_1m_completion_usd: 3.00
+
+  # ==================== StepFun ====================
+  step-3.5-flash:
+    provider: "openrouter"
+    model_id: "stepfun/step-3.5-flash"
+    temperature: 0.0
+    max_tokens: 36000
+    reasoning:
+      effort: "minimal"
+    cost_per_1m_prompt_usd: 0.10
+    cost_per_1m_completion_usd: 0.30
+
+  # ==================== Tencent Hunyuan (free!) ====================
+  hy3-preview:
+    provider: "openrouter"
+    model_id: "tencent/hy3-preview:free"
+    temperature: 0.0
+    max_tokens: 16000
+    cost_per_1m_prompt_usd: 0.0
+    cost_per_1m_completion_usd: 0.0

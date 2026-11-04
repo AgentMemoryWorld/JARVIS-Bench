@@ -1,0 +1,40 @@
+# Input conditions for the survey-prediction evaluation.
+# Each condition defines what context to inject into the user prompt.
+
+conditions:
+  C0_blank:
+    description: "No user-specific context (floor / model prior baseline)."
+    include_trajectory: false
+    trajectory_days: null
+    include_persona: false
+    include_survey_insight: false
+
+  C1_traj14d:
+    description: "First 14 days of synthetic_trajectory only."
+    include_trajectory: true
+    trajectory_days: 14
+    include_persona: false
+    include_survey_insight: false
+
+  C2_full:
+    description: "All days of synthetic_trajectory."
+    include_trajectory: true
+    trajectory_days: null
+    include_persona: false
+    include_survey_insight: false
+
+  C3_full_persona:
+    description: "All trajectory + enhanced profile_persona (enhanced_profile + uniqueness_signature + persona_narrative), WITHOUT survey_insight."
+    include_trajectory: true
+    trajectory_days: null
+    include_persona: false
+    include_profile_persona: true
+    include_survey_insight: false
+
+  C4_skyline:
+    description: "All trajectory + full profile_persona INCLUDING survey_insight (upper bound)."
+    include_trajectory: true
+    trajectory_days: null
+    include_persona: false
+    include_profile_persona: true
+    include_survey_insight: true

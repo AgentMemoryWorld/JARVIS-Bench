@@ -1,0 +1,25 @@
+# macOS Finder metadata
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# Eval pipeline outputs (regenerated at runtime)
+eval/runs/
+
+# Environment & secrets
+.env
+.env.*
+*.key
+*.pem
+
+# Editor / IDE
+.vscode/
+.idea/
+
+# All user data — opt-in only (use `git add -f` to include sanitized subsets)
+Data/
+synthetic/
+Data_upload/
