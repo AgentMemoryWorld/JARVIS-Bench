@@ -36,15 +36,24 @@ repository. They contain user-derived data and must be obtained separately
 
 ## Obtaining the data
 
-The data is distributed separately from the code. After downloading and
-extracting the data bundle, your project root must end up looking like this:
+The data is distributed separately from the code, on Harvard Dataverse:
+https://doi.org/10.7910/DVN/8UKMK1 (CC BY-NC 4.0). Download
+`jarvis-bench_full.zip` and run, from the repository root,
+
+```bash
+python tools/prepare_data.py /path/to/jarvis-bench_full.zip
+# add --no-images if you only run Implicit Preference Reasoning (task "survey")
+```
+
+The script unpacks the bundle and copies `ground_truth/survey_ground_truth.json`
+to `Data/processed/survey.json`, so the project root ends up looking like this:
 
 ```
 JARVIS-Bench/
 ├── Data/
 │   └── processed/
 │       ├── survey.json            # ground-truth survey answers, keyed by user_slug
-│       ├── persona.json           # structured persona summary, keyed by user_slug
+│       ├── persona.json           # optional; no released condition reads it
 │       └── image/
 │           └── {user_slug}/
 │               └── Day{N}/        # one folder per day, JPG/PNG photos inside
@@ -66,7 +75,7 @@ synthetic folders must use the same slug; the loader cross-references them.
 |-----------------------------------------------------|---------------------------------------|--------------------------------------------|
 | `JarvisBench_problem.csv`                           | survey loader                          | always                                     |
 | `Data/processed/survey.json`                        | survey ground-truth                    | always                                     |
-| `Data/processed/persona.json`                       | survey loader (persona injection)      | always                                     |
+| `Data/processed/persona.json`                       | survey loader (persona injection)      | optional; no released condition uses it    |
 | `Data/processed/image/{slug}/Day{N}/*.jpg`          | proactive-image, emotion-image tasks   | image-variant tasks only                   |
 | `synthetic/{slug}/synthetic_trajectory.json`        | all tasks                              | per-user, always                           |
 | `synthetic/{slug}/profile_persona.json`             | survey conditions C3, C4               | per-user, optional                         |
@@ -84,40 +93,59 @@ obtaining the data bundle.
 pip install openai pyyaml pandas
 # Optional, only if you use these providers:
 pip install anthropic google-genai google-cloud-aiplatform
+pip install boto3                  # Amazon Bedrock models
 
 # 2. Export API keys for the providers you want to call
 export OPENAI_API_KEY=...
 export OPENROUTER_API_KEY=...      # optional
 export GEMINI_API_KEY=...          # optional
+# Amazon Bedrock models use your AWS credentials (aws configure, AWS_PROFILE, or SSO)
 
-# 3. Place the data bundle as described above, then sanity-check
+# 3. Prepare the data (see "Obtaining the data"), then sanity-check
+python tools/prepare_data.py /path/to/jarvis-bench_full.zip
 python -m eval.src.cli list-users
 python -m eval.src.cli list-config
 
 # 4. Smoke test (single user, single model)
 python -m eval.src.cli run --task survey \
-    --users z8a2 --models gpt-5.4-nano
+    --users z8a2 --models gpt-5-nano
 
 # 5. Run all task variants for one user
-python -m eval.src.cli run --task survey          --users z8a2 --models gpt-5.4-nano
-python -m eval.src.cli run --task proactive_text  --users z8a2 --models gpt-5.4-nano
-python -m eval.src.cli run --task proactive_image --users z8a2 --models gpt-5.4-nano
-python -m eval.src.cli run --task emotion_text    --users z8a2 --models gpt-5.4-nano
-python -m eval.src.cli run --task emotion_image   --users z8a2 --models gpt-5.4-nano
+python -m eval.src.cli run --task survey          --users z8a2 --models gpt-5-nano
+python -m eval.src.cli run --task proactive_text  --users z8a2 --models gpt-5-nano
+python -m eval.src.cli run --task proactive_image --users z8a2 --models gpt-5-nano
+python -m eval.src.cli run --task emotion_text    --users z8a2 --models gpt-5-nano
+python -m eval.src.cli run --task emotion_image   --users z8a2 --models gpt-5-nano
 
 # 6. Domain Transfer (Task 4) — re-run the survey while ablating one domain.
 #    S1 "drop-one" measures necessity:    Δ accuracy vs C2_full baseline.
 #    S2 "keep-only" measures sufficiency: Δ accuracy vs C0_blank baseline.
 python -m eval.src.cli run --task survey --conditions C2_full \
-    --users z8a2 --models gpt-5.4-nano \
+    --users z8a2 --models gpt-5-nano \
     --ablations drop_food_dining drop_work_study drop_leisure
 python -m eval.src.cli run --task survey --conditions C0_blank \
-    --users z8a2 --models gpt-5.4-nano \
+    --users z8a2 --models gpt-5-nano \
     --ablations keep_food_dining keep_work_study keep_leisure
 
 # 7. (Re)aggregate result CSVs from cached runs
 python -m eval.src.cli aggregate --task all
 ```
+
+### Models
+
+`eval/configs/models.yaml` has one entry per evaluated model, keyed by the
+name used in the paper. Entries with `provider: "bedrock"` are called
+through the Amazon Bedrock Converse API (region `us-west-2`) without a
+temperature, with a 16k output cap and the reasoning setting listed under
+`additional_request_fields` (effort `low` where the model exposes it).
+For example:
+
+```bash
+python -m eval.src.cli run --task survey --users z8a2 --models gpt-6-astra claude-opus-4.5
+```
+
+Without `--models`, `run` calls every configured model, so always pass the
+models you want.
 
 ### Domain Transfer details
 

@@ -42,6 +42,14 @@ def load_ground_truth() -> dict[str, Any]:
 
 
 def load_persona() -> dict[str, Any]:
+    """Structured persona summary keyed by user slug.
+
+    No condition in eval/configs/conditions.yaml sets `include_persona`; C3 and C4
+    read synthetic/{slug}/profile_persona.json instead. A missing file is
+    therefore treated as empty.
+    """
+    if not PERSONA_JSON.exists():
+        return {}
     return json.load(open(PERSONA_JSON, encoding="utf-8"))
 
 

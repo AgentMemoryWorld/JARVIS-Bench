@@ -49,10 +49,11 @@ eval/
 ```bash
 pip install openai pyyaml pandas
 export OPENAI_API_KEY=sk-...
+pip install boto3   # only for provider "bedrock" (uses your AWS credentials)
 ```
 
-Edit `eval/configs/models.yaml` to set the actual `model_id` strings you want
-to call (e.g. `gpt-4o-mini`, `gpt-4o`, etc.).
+`eval/configs/models.yaml` lists every evaluated model; keys are the names used
+in the paper and `model_id` is the identifier sent to the provider.
 
 ## Commands
 
@@ -68,10 +69,10 @@ python -m eval.src.cli list-config
 python -m eval.src.cli run --dry-run
 
 # small smoke test (1 user, 1 condition, 1 model)
-python -m eval.src.cli run --users z8a2 --conditions C0_blank --models gpt-5.4-nano
+python -m eval.src.cli run --users z8a2 --conditions C0_blank --models gpt-5-nano
 
-# full matrix: 2 users x 5 conditions x 3 models = 30 calls
-python -m eval.src.cli run
+# 2 default users x 5 conditions x the listed models
+python -m eval.src.cli run --models gpt-5-nano gpt-5-mini gpt-5
 
 # regenerate _summary CSVs from existing runs (no API)
 python -m eval.src.cli aggregate

@@ -35,6 +35,10 @@ PROVIDER_CONFIG: dict[str, dict[str, str | None]] = {
     # than Vertex's region buckets but can return 503 UNAVAILABLE during peak
     # demand on hot models (gemini-2.5-pro etc.).
     "google_genai_apikey": {"base_url": None, "api_key_env": "GEMINI_API_KEY"},
+    # bedrock calls the Converse API with the standard AWS credential chain
+    # (environment variables, ~/.aws, SSO). `region` and per-model
+    # `additional_request_fields` come from eval/configs/models.yaml.
+    "bedrock": {"base_url": None, "api_key_env": None},
 }
 
 
@@ -101,6 +105,9 @@ def call_llm(
     thinking_budget: int | None = None,
     reasoning: dict | None = None,
     provider_routing: dict | None = None,
+    region: str | None = None,
+    additional_request_fields: dict | None = None,
+    cache_point: bool = False,
 ) -> dict[str, Any]:
     """Call the chat-completions API and return a normalized dict.
 
@@ -143,6 +150,11 @@ def call_llm(
         # thinking_budget changes the response, so it has to be in the key.
         if thinking_budget is not None:
             params["thinking_budget"] = thinking_budget
+    elif provider == "bedrock":
+        # region and request fields can change the response, so they are in the key.
+        params["region"] = region
+        if additional_request_fields:
+            params["additional_request_fields"] = additional_request_fields
     key = _cache_key(model_id, system, user, params, img_paths_resolved or None)
     cpath = _cache_path(key)
 
@@ -157,6 +169,21 @@ def call_llm(
     if provider not in PROVIDER_CONFIG:
         raise ValueError(
             f"unknown provider: {provider}; known: {list(PROVIDER_CONFIG)}"
+        )
+
+    # ----- Amazon Bedrock (Converse API) branch -----
+    if provider == "bedrock":
+        return _call_bedrock(
+            model_id=model_id,
+            system=system,
+            user=user,
+            max_tokens=max_tokens,
+            img_paths_resolved=img_paths_resolved,
+            region=region,
+            additional_request_fields=additional_request_fields,
+            cache_point=cache_point,
+            cache_key=key,
+            cache_path=cpath,
         )
 
     # ----- Vertex AI (Gemini) branch -----
@@ -627,3 +654,154 @@ def _call_google_genai_apikey(
             pass
         rec["finish_reason"] = finish_reason
     return rec
+
+
+# ---------------------------------------------------------------------------
+# Amazon Bedrock (Converse API)
+# ---------------------------------------------------------------------------
+_BEDROCK_CLIENTS: dict[str, Any] = {}
+_BEDROCK_LOCK = threading.Lock()
+_BEDROCK_IMAGE_FORMATS = {"jpg": "jpeg", "jpeg": "jpeg", "png": "png", "gif": "gif", "webp": "webp"}
+# prompt_builder section headers. With `cache_point: true` a cache point is put
+# after the activity log, so the conditions that share the log (C2, C3, C4)
+# reuse the cached prefix. This changes cost, not the model's output.
+_ACTIVITY_LOG_HEADER = "=== USER DAILY ACTIVITY LOG ==="
+_AFTER_LOG_HEADERS = ("\n=== USER PROFILE (ENHANCED) ===", "\n\n=== SURVEY QUESTIONS")
+_REFUSAL_STOPS = ("refusal", "content_filtered", "guardrail_intervened")
+_RETRYABLE_CODES = ("ThrottlingException", "ServiceUnavailableException", "ModelNotReadyException",
+                    "InternalServerException", "ModelTimeoutException", "ModelErrorException")
+
+
+def _bedrock_client(region: str):
+    with _BEDROCK_LOCK:
+        client = _BEDROCK_CLIENTS.get(region)
+        if client is None:
+            import boto3  # lazy import: only needed for provider "bedrock"
+            from botocore.config import Config
+            client = boto3.client(
+                "bedrock-runtime", region_name=region,
+                config=Config(read_timeout=1500, connect_timeout=60,
+                              retries={"max_attempts": 2, "mode": "standard"}),
+            )
+            _BEDROCK_CLIENTS[region] = client
+        return client
+
+
+def _bedrock_user_blocks(text: str, cache_point: bool, img_paths_resolved: list[Path]) -> list[dict[str, Any]]:
+    blocks: list[dict[str, Any]] = [{"text": text}]
+    if cache_point and _ACTIVITY_LOG_HEADER in text:
+        cut = text.find(_AFTER_LOG_HEADERS[0])
+        if cut < 0:
+            cut = text.find(_AFTER_LOG_HEADERS[1])
+        if cut > 20000:
+            blocks = [{"text": text[:cut]}, {"cachePoint": {"type": "default"}}, {"text": text[cut:]}]
+    for p in img_paths_resolved:
+        fmt = _BEDROCK_IMAGE_FORMATS.get(p.suffix.lower().lstrip("."))
+        if fmt is None:
+            raise ValueError(f"Bedrock accepts jpeg/png/gif/webp images, got {p.name}")
+        blocks.append({"image": {"format": fmt, "source": {"bytes": p.read_bytes()}}})
+    return blocks
+
+
+def _call_bedrock(
+    *,
+    model_id: str,
+    system: str,
+    user: str,
+    max_tokens: int,
+    img_paths_resolved: list[Path],
+    region: str | None,
+    additional_request_fields: dict | None,
+    cache_point: bool,
+    cache_key: str,
+    cache_path: Path,
+) -> dict[str, Any]:
+    """Call a Bedrock model through the Converse API.
+
+    This is the protocol used for the Bedrock-served models in the paper:
+    no temperature is sent (several reasoning models reject it), output is
+    capped by `maxTokens`, and the per-model reasoning setting is passed through
+    `additionalModelRequestFields`. JSON mode does not exist on Converse; the
+    answer parser reads the text. A model that rejects a system prompt gets it
+    prepended to the user message. Empty responses are retried, and only
+    non-empty responses are cached.
+
+    Returns the same normalized dict shape as the other providers.
+    """
+    from botocore.exceptions import ClientError
+
+    region = region or "us-west-2"
+    client = _bedrock_client(region)
+    merge_system = False
+    backoff = 10
+    for attempt in range(1, 15):
+        text = (system + "\n\n" + user) if merge_system else user
+        kwargs: dict[str, Any] = {
+            "modelId": model_id,
+            "messages": [{"role": "user", "content": _bedrock_user_blocks(text, cache_point, img_paths_resolved)}],
+            "inferenceConfig": {"maxTokens": max_tokens},
+        }
+        if not merge_system:
+            kwargs["system"] = [{"text": system}]
+        if additional_request_fields:
+            kwargs["additionalModelRequestFields"] = additional_request_fields
+        t0 = time.time()
+        try:
+            resp = client.converse(**kwargs)
+        except ClientError as e:
+            code = e.response.get("Error", {}).get("Code", "")
+            msg = str(e).lower()
+            if code == "ValidationException" and "system" in msg and not merge_system:
+                merge_system = True
+                continue
+            if code == "ValidationException" and cache_point and ("cachepoint" in msg or "cache point" in msg or "caching" in msg):
+                cache_point = False
+                continue
+            if code not in _RETRYABLE_CODES:
+                raise
+            print(f"  [bedrock {code}] sleep {backoff}s and retry...", flush=True)
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 300)
+            continue
+        except Exception as e:  # read timeouts, connection resets
+            print(f"  [bedrock {type(e).__name__}] sleep {backoff}s and retry...", flush=True)
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 300)
+            continue
+        elapsed = time.time() - t0
+        blocks = (resp.get("output") or {}).get("message", {}).get("content", []) or []
+        content = "".join(b.get("text", "") for b in blocks if "text" in b)
+        stop = resp.get("stopReason")
+        if not content.strip():
+            if stop in _REFUSAL_STOPS and attempt >= 2:
+                break
+            if stop == "max_tokens" and max_tokens < 32000:
+                max_tokens = 32000
+                continue
+            time.sleep(5)
+            continue
+        usage = resp.get("usage") or {}
+        rec: dict[str, Any] = {
+            "model_id": model_id,
+            "content": content,
+            "prompt_tokens": usage.get("inputTokens", 0),
+            "completion_tokens": usage.get("outputTokens", 0),
+            "total_tokens": usage.get("totalTokens", 0),
+            "cache_read_tokens": usage.get("cacheReadInputTokens", 0),
+            "cache_write_tokens": usage.get("cacheWriteInputTokens", 0),
+            "elapsed_s": round(elapsed, 3),
+            "stop_reason": stop,
+            "cache_key": cache_key,
+            "cached": False,
+        }
+        cache_path.parent.mkdir(parents=True, exist_ok=True)
+        tmp = cache_path.with_suffix(f".tmp.{os.getpid()}.{threading.get_ident()}")
+        with open(tmp, "w", encoding="utf-8") as f:
+            json.dump(rec, f, ensure_ascii=False, indent=2)
+        tmp.replace(cache_path)
+        return rec
+    # Refused or still empty after retries: return an empty, uncached record
+    # (the parser then counts every question as missing).
+    return {"model_id": model_id, "content": "", "prompt_tokens": 0, "completion_tokens": 0,
+            "total_tokens": 0, "elapsed_s": 0.0, "cache_key": cache_key, "cached": False,
+            "empty_response": True}

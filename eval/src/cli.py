@@ -119,6 +119,9 @@ def run_one(
         project_id=model_cfg.get("project_id"),
         location=model_cfg.get("location"),
         thinking_budget=model_cfg.get("thinking_budget"),
+        region=model_cfg.get("region"),
+        additional_request_fields=model_cfg.get("additional_request_fields"),
+        cache_point=bool(model_cfg.get("cache_point", False)),
     )
     record["est_cost_usd"] = _estimate_cost(
         record.get("prompt_tokens", 0) or 0,
@@ -199,6 +202,9 @@ def run_one_proactive_text(user_slug, model_key, models, *, dry_run=False):
             project_id=model_cfg.get("project_id"),
             location=model_cfg.get("location"),
             thinking_budget=model_cfg.get("thinking_budget"),
+            region=model_cfg.get("region"),
+            additional_request_fields=model_cfg.get("additional_request_fields"),
+            cache_point=bool(model_cfg.get("cache_point", False)),
         )
         record["est_cost_usd"] = _estimate_cost(
             record.get("prompt_tokens", 0) or 0,
@@ -272,6 +278,9 @@ def run_one_proactive_image(user_slug, model_key, models, *, dry_run=False):
             project_id=model_cfg.get("project_id"),
             location=model_cfg.get("location"),
             thinking_budget=model_cfg.get("thinking_budget"),
+            region=model_cfg.get("region"),
+            additional_request_fields=model_cfg.get("additional_request_fields"),
+            cache_point=bool(model_cfg.get("cache_point", False)),
         )
         record["est_cost_usd"] = _estimate_cost(
             record.get("prompt_tokens", 0) or 0,
@@ -347,6 +356,9 @@ def _run_emotion_generic(user_slug, model_key, models, variant, *, dry_run=False
             project_id=model_cfg.get("project_id"),
             location=model_cfg.get("location"),
             thinking_budget=model_cfg.get("thinking_budget"),
+            region=model_cfg.get("region"),
+            additional_request_fields=model_cfg.get("additional_request_fields"),
+            cache_point=bool(model_cfg.get("cache_point", False)),
         )
         record["est_cost_usd"] = _estimate_cost(
             record.get("prompt_tokens", 0) or 0,
