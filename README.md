@@ -1,5 +1,10 @@
 # JARVIS-Bench
 
+Code for the NeurIPS 2026 (Evaluations & Datasets track) paper
+**JARVIS-Bench: Benchmarking Personal Intelligence Agents on Long-Horizon Real-User Daily Traces**
+([OpenReview](https://openreview.net/forum?id=yGQt9wAGkS)). The data is on
+[Harvard Dataverse](https://doi.org/10.7910/DVN/8UKMK1).
+
 A benchmark for evaluating how well LLMs can model and predict an individual
 user's lifestyle preferences, proactive-help needs, and emotional state from
 their daily activity logs and images.
@@ -21,6 +26,8 @@ JARVIS-Bench/
 ├── LICENSE                  # MIT
 ├── .gitignore               # excludes user data + caches + secrets
 ├── JarvisBench_problem.csv  # 100-question survey (public benchmark items)
+├── ground_truth/            # survey answer key (copied to Data/processed/survey.json)
+├── tools/prepare_data.py    # unpacks the Dataverse data bundle into Data/ and synthetic/
 ├── eval/                    # evaluation pipeline (see eval/README.md)
 │   ├── README.md
 │   ├── configs/             # conditions.yaml, models.yaml, domain_mapping.yaml
@@ -127,14 +134,19 @@ python -m eval.src.cli run --task survey --conditions C0_blank \
     --users z8a2 --models gpt-5-nano \
     --ablations keep_food_dining keep_work_study keep_leisure
 
-# 7. (Re)aggregate result CSVs from cached runs
+# 7. (Re)aggregate result CSVs from cached runs. For proactive runs this also
+#    calls the rationale-match judge (OpenAI gpt-5-mini by default, needs
+#    OPENAI_API_KEY); add --no-judge to skip it or --judge-model-id to change it.
 python -m eval.src.cli aggregate --task all
 ```
 
 ### Models
 
-`eval/configs/models.yaml` has one entry per evaluated model, keyed by the
-name used in the paper. Entries with `provider: "bedrock"` are called
+`eval/configs/models.yaml` has one entry per model and serving route, keyed
+by the model name used in the paper. Gemini models also have a Google AI
+Studio route with an `-api` suffix, which is the route the paper reports, and
+a few screened models that are not in the paper (`step-3.5-flash`,
+`hy3-preview`, `gemini-3.1-pro-preview`) are kept. Entries with `provider: "bedrock"` are called
 through the Amazon Bedrock Converse API (region `us-west-2`) without a
 temperature, with a 16k output cap and the reasoning setting listed under
 `additional_request_fields` (effort `low` where the model exposes it).
@@ -145,7 +157,9 @@ python -m eval.src.cli run --task survey --users z8a2 --models gpt-6-astra claud
 ```
 
 Without `--models`, `run` calls every configured model, so always pass the
-models you want.
+models you want. Bedrock needs model access for each provider enabled in
+`us-west-2` (Bedrock console, Model access); an `AccessDeniedException` means
+the account has no access to that model.
 
 ### Domain Transfer details
 
@@ -179,7 +193,75 @@ caching behavior, and parallelism controls (`EVAL_PARALLEL` env var).
 
 ## Citation
 
-If you use JARVIS-Bench in your research, please cite the accompanying paper.
+If you use JARVIS-Bench in your research, please cite the paper:
+
+```bibtex
+@inproceedings{zhang2026jarvisbench,
+  title     = {{JARVIS-Bench}: Benchmarking Personal Intelligence Agents on Long-Horizon Real-User Daily Traces},
+  author    = {Zhang, Weizhi and
+            Huang, Wei-Chieh and
+            Liang, Yueqing and
+            Jiang, Liwei and
+            Wang, Zhengxiang and
+            Yang, Liangwei and
+            Li, Zechen and
+            Wu, Yuchen and
+            Zhang, Haozhen and
+            Wang, Yu and
+            Bei, Yuanchen and
+            Zhou, Yue and
+            Zhu, Siqi and
+            Zou, Henry Peng and
+            Liu, Jiahong and
+            Zhang, Xinni and
+            Martin, Paul and
+            Imperial, Joseph Marvin and
+            Luo, Yuyang and
+            Xu, Xiongxiao and
+            Huang, Baixiang and
+            Wu, Shanglin and
+            Resck, Lucas and
+            Wang, Yibo and
+            Liu, Yuqing and
+            He, Langzhou and
+            Li, Chengze and
+            Tian, Yuxin and
+            Zheng, Kening and
+            Ma, Enze and
+            Huynh, Boi and
+            Hui, Zheng and
+            Yang, Rui and
+            Feng, Tao and
+            Yang, Jie and
+            Li, Shanghao and
+            Wang, Haoran and
+            Yang, Wooseong and
+            Zhang, Hanrong and
+            Ma, Huanhuan and
+            Yoon, Daye and
+            Wu, Yaozu and
+            Lian, Shikan and
+            Ruan, Xiaoqian and
+            Wang, Fangxin and
+            Park, Hyeonjeong and
+            Hu, Hins and
+            Fan, Wenzhe and
+            Wang, Chen and
+            Gu, Yifan and
+            Li, Dongyuan and
+            Wang, Song and
+            Caliskan, Aylin and
+            Wang, Jindong and
+            Luo, Xiao and
+            Chen, Yankai and
+            Shu, Kai and
+            Liu, Xue and
+            Yu, Philip S.},
+  booktitle = {Advances in Neural Information Processing Systems (NeurIPS), Track on Evaluations and Datasets},
+  year      = {2026},
+  url       = {https://openreview.net/forum?id=yGQt9wAGkS}
+}
+```
 
 ## License
 

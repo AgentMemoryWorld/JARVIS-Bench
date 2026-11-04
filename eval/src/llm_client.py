@@ -663,8 +663,8 @@ _BEDROCK_CLIENTS: dict[str, Any] = {}
 _BEDROCK_LOCK = threading.Lock()
 _BEDROCK_IMAGE_FORMATS = {"jpg": "jpeg", "jpeg": "jpeg", "png": "png", "gif": "gif", "webp": "webp"}
 # prompt_builder section headers. With `cache_point: true` a cache point is put
-# after the activity log, so the conditions that share the log (C2, C3, C4)
-# reuse the cached prefix. This changes cost, not the model's output.
+# after the activity log, so a later call for the same user can reuse the cached
+# prefix while the provider keeps it. This changes cost, not the model's output.
 _ACTIVITY_LOG_HEADER = "=== USER DAILY ACTIVITY LOG ==="
 _AFTER_LOG_HEADERS = ("\n=== USER PROFILE (ENHANCED) ===", "\n\n=== SURVEY QUESTIONS")
 _REFUSAL_STOPS = ("refusal", "content_filtered", "guardrail_intervened")
@@ -728,12 +728,14 @@ def _call_bedrock(
 
     Returns the same normalized dict shape as the other providers.
     """
-    from botocore.exceptions import ClientError
+    from botocore.exceptions import ClientError, NoCredentialsError, ParamValidationError, PartialCredentialsError
 
     region = region or "us-west-2"
     client = _bedrock_client(region)
     merge_system = False
     backoff = 10
+    failures = 0  # consecutive transport errors
+    last_err: Exception | None = None
     for attempt in range(1, 15):
         text = (system + "\n\n" + user) if merge_system else user
         kwargs: dict[str, Any] = {
@@ -759,16 +761,25 @@ def _call_bedrock(
                 continue
             if code not in _RETRYABLE_CODES:
                 raise
+            last_err = e
             print(f"  [bedrock {code}] sleep {backoff}s and retry...", flush=True)
             time.sleep(backoff)
             backoff = min(backoff * 2, 300)
             continue
+        except (NoCredentialsError, PartialCredentialsError, ParamValidationError):
+            raise  # configuration problems: retrying cannot help
         except Exception as e:  # read timeouts, connection resets
+            failures += 1
+            last_err = e
+            if failures >= 6:
+                raise RuntimeError(f"bedrock: giving up after {failures} transport errors: {e}") from e
             print(f"  [bedrock {type(e).__name__}] sleep {backoff}s and retry...", flush=True)
             time.sleep(backoff)
             backoff = min(backoff * 2, 300)
             continue
         elapsed = time.time() - t0
+        failures = 0
+        last_err = None
         blocks = (resp.get("output") or {}).get("message", {}).get("content", []) or []
         content = "".join(b.get("text", "") for b in blocks if "text" in b)
         stop = resp.get("stopReason")
@@ -784,7 +795,7 @@ def _call_bedrock(
         rec: dict[str, Any] = {
             "model_id": model_id,
             "content": content,
-            "prompt_tokens": usage.get("inputTokens", 0),
+            "prompt_tokens": usage.get("inputTokens", 0) + usage.get("cacheReadInputTokens", 0) + usage.get("cacheWriteInputTokens", 0),
             "completion_tokens": usage.get("outputTokens", 0),
             "total_tokens": usage.get("totalTokens", 0),
             "cache_read_tokens": usage.get("cacheReadInputTokens", 0),
@@ -800,6 +811,8 @@ def _call_bedrock(
             json.dump(rec, f, ensure_ascii=False, indent=2)
         tmp.replace(cache_path)
         return rec
+    if last_err is not None:
+        raise RuntimeError(f"bedrock: no answer after retries: {last_err}") from last_err
     # Refused or still empty after retries: return an empty, uncached record
     # (the parser then counts every question as missing).
     return {"model_id": model_id, "content": "", "prompt_tokens": 0, "completion_tokens": 0,

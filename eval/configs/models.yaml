@@ -372,7 +372,7 @@ models:
   # Needs `pip install boto3` and AWS credentials (env vars, ~/.aws, or SSO).
   # No temperature is sent; `additional_request_fields` is the reasoning setting
   # each model ran with (effort "low" where the model exposes it; Claude-Opus-4.5
-  # runs at its default). `cache_point` only enables prompt caching (cost).
+  # runs at its default).
   # Pricing is not listed, so the cost column stays 0 for these models.
   gpt-oss-20b:
     provider: "bedrock"
@@ -463,7 +463,6 @@ models:
     model_id: "us.anthropic.claude-opus-4-5-20251101-v1:0"
     region: "us-west-2"
     max_tokens: 16000
-    cache_point: true
 
   claude-opus-4.6:
     provider: "bedrock"
@@ -471,7 +470,6 @@ models:
     region: "us-west-2"
     max_tokens: 16000
     additional_request_fields: {thinking: {type: "adaptive"}, output_config: {effort: "low"}}
-    cache_point: true
 
   claude-opus-4.7:
     provider: "bedrock"
@@ -479,7 +477,6 @@ models:
     region: "us-west-2"
     max_tokens: 16000
     additional_request_fields: {thinking: {type: "adaptive"}, output_config: {effort: "low"}}
-    cache_point: true
 
   claude-opus-4.8:
     provider: "bedrock"
@@ -487,7 +484,6 @@ models:
     region: "us-west-2"
     max_tokens: 16000
     additional_request_fields: {thinking: {type: "adaptive"}, output_config: {effort: "low"}}
-    cache_point: true
 
   claude-sonnet-5:
     provider: "bedrock"
@@ -495,7 +491,6 @@ models:
     region: "us-west-2"
     max_tokens: 16000
     additional_request_fields: {thinking: {type: "adaptive"}, output_config: {effort: "low"}}
-    cache_point: true
 
   claude-opus-5:
     provider: "bedrock"
@@ -503,7 +498,6 @@ models:
     region: "us-west-2"
     max_tokens: 16000
     additional_request_fields: {output_config: {effort: "low"}}
-    cache_point: true
 
   claude-fable-5:
     provider: "bedrock"
@@ -511,7 +505,6 @@ models:
     region: "us-west-2"
     max_tokens: 16000
     additional_request_fields: {output_config: {effort: "low"}}
-    cache_point: true
 
   claude-fable-5.1:
     provider: "bedrock"
@@ -519,7 +512,6 @@ models:
     region: "us-west-2"
     max_tokens: 16000
     additional_request_fields: {output_config: {effort: "low"}}
-    cache_point: true
 
   claude-haiku-5.5:
     provider: "bedrock"
@@ -527,7 +519,6 @@ models:
     region: "us-west-2"
     max_tokens: 16000
     additional_request_fields: {output_config: {effort: "low"}}
-    cache_point: true
 
   claude-sonnet-5.5:
     provider: "bedrock"
@@ -535,7 +526,6 @@ models:
     region: "us-west-2"
     max_tokens: 16000
     additional_request_fields: {output_config: {effort: "low"}}
-    cache_point: true
 
   claude-opus-5.5:
     provider: "bedrock"
@@ -543,7 +533,6 @@ models:
     region: "us-west-2"
     max_tokens: 16000
     additional_request_fields: {output_config: {effort: "low"}}
-    cache_point: true
 
   grok-4.6:
     provider: "bedrock"
