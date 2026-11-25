@@ -1,14 +1,15 @@
 """Lay out the JARVIS-Bench data bundle the way eval/ expects it.
 
-The data is hosted on Harvard Dataverse (https://doi.org/10.7910/DVN/8UKMK1) as
-jarvis-bench_full.zip, which holds two archives:
+The dataset is available at https://huggingface.co/datasets/WZDavid/JARVIS-Bench.
+This utility accepts prepared User/Image directories or archives, not the
+Hugging Face Parquet files directly. See docs/USAGE.md for the input layout:
 
   User.zip   User/{slug}/synthetic_trajectory.json, profile_persona.json, skeleton.json, ...
   Image.zip  Image/{slug}/Day{N}/<photo>
 
 Run from the repository root:
 
-  python tools/prepare_data.py /path/to/jarvis-bench_full.zip
+  python tools/prepare_data.py /path/to/prepared-data.zip  # holds User.zip/Image.zip
   python tools/prepare_data.py /path/to/folder        # holds User.zip/Image.zip or User/ and Image/
   python tools/prepare_data.py ... --no-images        # Implicit Preference only (no photo tasks)
 
@@ -121,7 +122,7 @@ def prepare_images(src) -> tuple[int, dict[str, int]]:
 
 def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
-    ap.add_argument("source", type=Path, help="jarvis-bench_full.zip, or a folder holding User/Image (zip or folders)")
+    ap.add_argument("source", type=Path, help="zip containing User.zip/Image.zip, or a folder holding User/Image (zip or folders)")
     ap.add_argument("--no-images", action="store_true", help="skip the photos (enough for Implicit Preference Reasoning)")
     a = ap.parse_args()
     if not a.source.exists():
